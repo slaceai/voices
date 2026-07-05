@@ -35,9 +35,6 @@
 
     <script>
         const DB_URL = "https://slace-4d2ae-default-rtdb.asia-southeast1.firebasedatabase.app";
-        const GITHUB_TOKEN = "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"; 
-        const REPO = "slaceai/voices"; // Yahan sahi repo ka naam dalo
-        
         let mediaRecorder, audioChunks = [];
 
         function switchView(viewId) {
@@ -47,36 +44,37 @@
         }
 
         async function toggleRecording() {
+            const recBtn = document.getElementById('recBtn');
             if(!mediaRecorder || mediaRecorder.state === "inactive") {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 mediaRecorder = new MediaRecorder(stream);
-                mediaRecorder.start();
                 audioChunks = [];
                 mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-                document.getElementById('recBtn').innerText = "Stop Recording";
+                mediaRecorder.start();
+                recBtn.innerText = "Stop Recording";
             } else {
                 mediaRecorder.stop();
-                document.getElementById('recBtn').innerText = "Start Recording";
+                recBtn.innerText = "Start Recording";
+                mediaRecorder.stream.getTracks().forEach(track => track.stop());
             }
         }
 
         async function processAndUpload() {
             const code = document.getElementById('newCode').value;
             if(!code) return alert("Code daalo!");
+            if(audioChunks.length === 0) return alert("Pehle record toh karo!");
             
             const blob = new Blob(audioChunks, { type: 'audio/mp3' });
             const reader = new FileReader();
             reader.readAsDataURL(blob);
             reader.onloadend = async () => {
-                const base64 = reader.result.split(',')[1];
-                const res = await fetch(`https://api.github.com/repos/${REPO}/contents/${code}.mp3`, {
-                    method: 'PUT',
-                    headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: "New Voice", content: base64 })
+                const base64Audio = reader.result;
+                const res = await fetch(`${DB_URL}/voices/${code}.json`, { 
+                    method: 'PUT', 
+                    body: JSON.stringify({ audioData: base64Audio }) 
                 });
-                const data = await res.json();
-                await fetch(`${DB_URL}/voices/${code}.json`, { method: 'PUT', body: JSON.stringify({ url: data.content.download_url }) });
-                alert("Voice saved successfully!");
+                if(res.ok) alert("Voice saved successfully!");
+                else alert("Save failed!");
             };
         }
 
@@ -84,9 +82,9 @@
             const code = document.getElementById('codeInput').value;
             const res = await fetch(`${DB_URL}/voices/${code}.json`);
             const data = await res.json();
-            if(data) {
+            if(data && data.audioData) {
                 const player = document.getElementById('audioPlayer');
-                player.src = data.url;
+                player.src = data.audioData;
                 player.style.display = 'block';
                 player.play();
             } else { alert("Code not found!"); }
