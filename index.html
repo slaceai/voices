@@ -64,17 +64,19 @@
             if(!code) return alert("Code daalo!");
             if(audioChunks.length === 0) return alert("Pehle record toh karo!");
             
-            const blob = new Blob(audioChunks, { type: 'audio/mp3' });
+            // Audio type 'audio/webm' phone browsers ke liye zyada stable hai
+            const blob = new Blob(audioChunks, { type: 'audio/webm' });
             const reader = new FileReader();
             reader.readAsDataURL(blob);
             reader.onloadend = async () => {
                 const base64Audio = reader.result;
                 const res = await fetch(`${DB_URL}/voices/${code}.json`, { 
                     method: 'PUT', 
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ audioData: base64Audio }) 
                 });
                 if(res.ok) alert("Voice saved successfully!");
-                else alert("Save failed!");
+                else alert("Save failed! Rules check karo.");
             };
         }
 
