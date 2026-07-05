@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        :root { --primary: #6366f1; --bg: #0f172a; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: white; margin: 0; display: flex; flex-direction: column; height: 100vh; }
+        .container { flex: 1; padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .input-box { width: 80%; padding: 15px; border-radius: 12px; border: none; margin-bottom: 20px; background: #1e293b; color: white; text-align: center; }
+        button { background: var(--primary); color: white; border: none; padding: 12px 30px; border-radius: 50px; font-weight: bold; cursor: pointer; margin: 5px; }
+        .nav { display: flex; justify-content: space-around; background: #1e293b; padding: 15px; border-top: 1px solid #334155; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="container" id="searchView">
+        <h2>Voice Finder</h2>
+        <input type="text" id="codeInput" class="input-box" placeholder="Enter Unique Code">
+        <button onclick="checkDatabase()">Search Voice</button>
+        <audio id="audioPlayer" controls style="margin-top:20px; display:none;"></audio>
+    </div>
+
+    <div class="container hidden" id="createView">
+        <h2>Record New</h2>
+        <button id="recBtn" onclick="toggleRecording()">Start Recording</button>
+        <input type="text" id="newCode" class="input-box" placeholder="Set Unique Code">
+        <button onclick="processAndUpload()">Upload & Save</button>
+    </div>
+
+    <div class="nav">
+        <button onclick="switchView('searchView')">🔍 Search</button>
+        <button onclick="switchView('createView')">➕ Create</button>
+    </div>
+
+    <script>
+        const DB_URL = "https://slace-4d2ae-default-rtdb.asia-southeast1.firebasedatabase.app";
+        const GITHUB_TOKEN = "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"; 
+        const REPO = "slaceai/voices"; // Yahan sahi repo ka naam dalo
+        
+        let mediaRecorder, audioChunks = [];
+
+        function switchView(viewId) {
+            document.getElementById('searchView').classList.add('hidden');
+            document.getElementById('createView').classList.add('hidden');
+            document.getElementById(viewId).classList.remove('hidden');
+        }
+
+        async function toggleRecording() {
+            if(!mediaRecorder || mediaRecorder.state === "inactive") {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                mediaRecorder.start();
+                audioChunks = [];
+                mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+                document.getElementById('recBtn').innerText = "Stop Recording";
+            } else {
+                mediaRecorder.stop();
+                document.getElementById('recBtn').innerText = "Start Recording";
+            }
+        }
+
+        async function processAndUpload() {
+            const code = document.getElementById('newCode').value;
+            if(!code) return alert("Code daalo!");
+            
+            const blob = new Blob(audioChunks, { type: 'audio/mp3' });
+            const reader = new FileReader();
+            reader.readAsDataURL(blob);
+            reader.onloadend = async () => {
+                const base64 = reader.result.split(',')[1];
+                const res = await fetch(`https://api.github.com/repos/${REPO}/contents/${code}.mp3`, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: "New Voice", content: base64 })
+                });
+                const data = await res.json();
+                await fetch(`${DB_URL}/voices/${code}.json`, { method: 'PUT', body: JSON.stringify({ url: data.content.download_url }) });
+                alert("Voice saved successfully!");
+            };
+        }
+
+        async function checkDatabase() {
+            const code = document.getElementById('codeInput').value;
+            const res = await fetch(`${DB_URL}/voices/${code}.json`);
+            const data = await res.json();
+            if(data) {
+                const player = document.getElementById('audioPlayer');
+                player.src = data.url;
+                player.style.display = 'block';
+                player.play();
+            } else { alert("Code not found!"); }
+        }
+    </script>
+</body>
+</html>
